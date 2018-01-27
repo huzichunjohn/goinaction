@@ -1,30 +1,17 @@
 package main
 
 import (
-	"os"
+	"flag"
+	"log"
+	"net/http"
 
-	"github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var log = logrus.New()
+var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 
 func main() {
-	log.Out = os.Stdout
-
-	file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY, 0666)
-	if err == nil {
-		log.Out = file
-	} else {
-		log.Info("Failed to log to file, using default stderr")
-	}
-
-	log.WithFields(logrus.Fields{
-		"animal": "walrus",
-		"size":   10,
-	}).Info("A group of walrus emerges from the ocean")
-
-	log.WithFields(logrus.Fields{
-		"animal": "walrus",
-		"size":   15,
-	}).Warn("Something else")
+	flag.Parse()
+	http.Handle("/metrics", promhttp.Handler())
+	log.Fatal(http.ListenAndServe(*addr, nil))
 }
