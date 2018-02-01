@@ -6,6 +6,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	_ "github.com/mkevac/debugcharts"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
