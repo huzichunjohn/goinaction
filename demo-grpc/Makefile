@@ -25,7 +25,14 @@ api/api.pb.gw.go: api/api.proto
 		--grpc-gateway_out=logtostderr=true:api \
 		api/api.proto
 
-api: api/api.pb.go api/api.pb.gw.go ## Auto-generate grpc go sources
+api/api.swagger.json: api/api.proto
+	@protoc -I api/ \
+		-I${GOPATH}/src \
+		-I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+		--swagger_out=logtostderr=true:api \
+		api/api.proto
+
+api: api/api.pb.go api/api.pb.gw.go api/api.swagger.json ## Auto-generate grpc go sources
 
 dep: ## Get the dependencies
 	@go get -v -d ./...
