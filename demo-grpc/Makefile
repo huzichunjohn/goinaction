@@ -1,6 +1,7 @@
 SERVER_OUT := "bin/server"
 CLIENT_OUT := "bin/client"
 API_OUT := "api/api.pb.go"
+API_REST_OUT := "api/api.pb.gw.go"
 PKG := "."
 SERVER_PKG_BUILD := "${PKG}/server"
 CLIENT_PKG_BUILD := "${PKG}/client"
@@ -13,11 +14,18 @@ all: server client
 api/api.pb.go: api/api.proto
 	@protoc -I api/ \
 		-I${GOPATH}/src \
+		-I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
 		--go_out=plugins=grpc:api \
 		api/api.proto
 
-# api: api/api.pb.go api/api.pb.gw.go api/api.swagger.json
-api: api/api.pb.go ## Auto-generate grpc go sources
+api/api.pb.gw.go: api/api.proto
+	@protoc -I api/ \
+		-I${GOPATH}/src \
+		-I${GOPATH}/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+		--grpc-gateway_out=logtostderr=true:api \
+		api/api.proto
+
+api: api/api.pb.go api/api.pb.gw.go ## Auto-generate grpc go sources
 
 dep: ## Get the dependencies
 	@go get -v -d ./...
