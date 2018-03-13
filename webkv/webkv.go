@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"./service"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -26,11 +28,12 @@ func main() {
 
 	addrs := strings.Split(*addrsStr, ";")
 
-	s, err := service.New(addrs, *ttl)
+	s, err := service.New(addrs, *ttl, *port)
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.Handle("/", s)
+	http.Handle("/", prometheus.InstrumentHandler("webkv", s))
+	http.Handle("/metrics", promhttp.Handler())
 
 	l := fmt.Sprintf(":%d", *port)
 	log.Print("Listening on ", l)
