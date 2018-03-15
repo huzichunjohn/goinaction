@@ -3,8 +3,8 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"shiori/model"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -28,7 +28,7 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			panicErr, _ := r.(error)
-			log.Println("Database error:", panicErr)
+			fmt.Println("Database error:", panicErr)
 			tx.Rollback()
 
 			db = nil
@@ -36,15 +36,14 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 		}
 	}()
 
-	_, err = tx.Exec(`CREATE TABLE IF NOT EXISTS account(
+	tx.MustExec(`CREATE TABLE IF NOT EXISTS account(
 		id INTEGER NOT NULL,
 		username TEXT NOT NULL,
 		password TEXT NOT NULL,
 		CONSTRAINT account_PK PRIMARY KEY(id),
 		CONSTRAINT account_username_UNIQUE UNIQUE(username))`)
-	checkError(err)
 
-	_, err = tx.Exec(`CREATE TABLE IF NOT EXISTS bookmark(
+	tx.MustExec(`CREATE TABLE IF NOT EXISTS bookmark(
 		id INTEGER NOT NULL,
 		account_id INTEGER DEFAULT NULL,
 		url TEXT NOT NULL,
@@ -58,25 +57,21 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 		CONSTRAINT bookmark_PK PRIMARY KEY(id),
 		CONSTRAINT bookmark_url_UNIQUE UNIQUE(url),
 		CONSTRAINT bookmark_account_id_FK FOREIGN KEY(account_id) REFERENCES account(id))`)
-	checkError(err)
 
-	_, err = tx.Exec(`CREATE TABLE IF NOT EXISTS tag(
+	tx.MustExec(`CREATE TABLE IF NOT EXISTS tag(
 		id INTEGER NOT NULL,
 		name TEXT NOT NULL,
 		CONSTRAINT tag_PK PRIMARY KEY(id),
 		CONSTRAINT tag_name_UNIQUE UNIQUE(name))`)
-	checkError(err)
 
-	_, err = tx.Exec(`CREATE TABLE IF NOT EXISTS bookmark_tag(
+	tx.MustExec(`CREATE TABLE IF NOT EXISTS bookmark_tag(
 		bookmark_id INTEGER NOT NULL,
 		tag_id INTEGER NOT NULL,
 		CONSTRAINT bookmark_tag_PK PRIMARY KEY(bookmark_id, tag_id),
 		CONSTRAINT bookmark_id_FK FOREIGN KEY(bookmark_id) REFERENCES bookmark(id),
 		CONSTRAINT tag_id_FK FOREIGN KEY(tag_id) REFERENCES tag(id))`)
-	checkError(err)
 
-	_, err = tx.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS bookmark_content USING fts4(title, content)`)
-	checkError(err)
+	tx.MustExec(`CREATE VIRTUAL TABLE IF NOT EXISTS bookmark_content USING fts4(title, content)`)
 
 	err = tx.Commit()
 	checkError(err)
@@ -103,7 +98,7 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 	}()
 
 	// Save article to database
-	res, err := tx.Exec(`INSERT INTO bookmark (
+	res := tx.MustExec(`INSERT INTO bookmark (
 		url, title, image_url, excerpt, author,
 		min_read_time, max_read_time)
 		VALUES(?, ?, ?, ?, ?, ?, ?)`,
@@ -121,10 +116,9 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 	checkError(err)
 
 	// Save bookmark content
-	_, err = tx.Exec(`INSERT INTO bookmark_content
+	tx.MustExec(`INSERT INTO bookmark_content
 			(docid, title, content) VALUES (?, ?, ?)`,
 		bookmarkID, article.Meta.Title, article.Content)
-	checkError(err)
 
 	// Save tags
 	stmtGetTag, err := tx.Preparex(`SELECT id FROM tag WHERE name = ?`)
@@ -133,8 +127,7 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 	stmtInsertTag, err := tx.Preparex(`INSERT INTO tag (name) VALUES (?)`)
 	checkError(err)
 
-	stmtInsertBookmarkTag, err := tx.Preparex(`INSERT OR IGNORE INTO bookmark_tag
-		(tag_id, bookmark_id) VALUES (?, ?)`)
+	stmtInsertBookmarkTag, err := tx.Preparex(`INSERT OR IGNORE INTO bookmark_tag(tag_id, bookmark_id) VALUES (?, ?)`)
 	checkError(err)
 
 	bookmarkTags := []model.Tag{}
@@ -144,14 +137,10 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 
 		tagID := int64(-1)
 		err = stmtGetTag.Get(&tagID, tag)
-		if err != nil && err != sql.ErrNoRows {
-			panic(err)
-		}
+		checkError(err)
 
 		if tagID == -1 {
-			res, err := stmtInsertTag.Exec(tag)
-			checkError(err)
-
+			res := stmtInsertTag.MustExec(tag)
 			tagID, err = res.LastInsertId()
 			checkError(err)
 		}
@@ -185,47 +174,57 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 }
 
 func (db *SQLiteDatabase) GetBookmarks(indices ...string) ([]model.Bookmark, error) {
-	// Prepare query
-	query := `SELECT id,
-			url, title, image_url, excerpt, author,
-			min_read_time, max_read_time, modified
-			FROM bookmark`
-	args := []interface{}{}
+	// Convert list of index to int
+	listIndex := []int{}
+	errInvalidIndex := fmt.Errorf("Index is not valid")
 
-	if len(indices) == 0 {
-		query += " WHERE 1"
-	} else {
-		query += " WHERE 0"
-	}
-
-	// Add where clause
 	for _, strIndex := range indices {
 		if strings.Contains(strIndex, "-") {
 			parts := strings.Split(strIndex, "-")
 			if len(parts) != 2 {
-				return nil, fmt.Errorf("Index is not valid")
+				return nil, errInvalidIndex
 			}
 
 			minIndex, errMin := strconv.Atoi(parts[0])
 			maxIndex, errMax := strconv.Atoi(parts[1])
-			if errMin != nil || errMax != nil {
-				return nil, fmt.Errorf("Index is not valid")
+			if errMin != nil || errMax != nil || minIndex < 1 || minIndex > maxIndex {
+				return nil, errInvalidIndex
 			}
 
-			query += ` OR (id BETWEEN ? AND ?) `
-			args = append(args, minIndex, maxIndex)
+			for i := minIndex; i <= maxIndex; i++ {
+				listIndex = append(listIndex, i)
+			}
 		} else {
 			index, err := strconv.Atoi(strIndex)
-			if err != nil {
-				return nil, fmt.Errorf("Index is not valid")
+			if err != nil || index < 1 {
+				return nil, errInvalidIndex
 			}
 
-			query += ` OR id = ? `
-			args = append(args, index)
+			listIndex = append(listIndex, index)
 		}
 	}
 
+	// Prepare where clause
+	args := []interface{}{}
+	whereClause := " WHERE 1"
+
+	if len(listIndex) > 0 {
+		whereClause = " WHERE id IN ("
+		for _, idx := range listIndex {
+			args = append(args, idx)
+			whereClause += "?,"
+		}
+
+		whereClause = whereClause[:len(whereClause)-1]
+		whereClause += ")"
+	}
+
 	// Fetch bookmarks
+	query := `SELECT id,
+			url, title, image_url, excerpt, author,
+			min_read_time, max_read_time, modified
+			FROM bookmark` + whereClause
+
 	bookmarks := []model.Bookmark{}
 	err := db.Select(&bookmarks, query, args...)
 	if err != nil && err != sql.ErrNoRows {
@@ -236,6 +235,182 @@ func (db *SQLiteDatabase) GetBookmarks(indices ...string) ([]model.Bookmark, err
 	stmtGetTags, err := db.Preparex(`SELECT t.id, t.name
 		FROM bookmark_tag bt LEFT JOIN tag t ON bt.tag_id = t.id
 		WHERE bt.bookmark_id = ? ORDER BY t.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer stmtGetTags.Close()
+
+	for i := range bookmarks {
+		tags := []model.Tag{}
+		err = stmtGetTags.Select(&tags, bookmarks[i].ID)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
+
+		bookmarks[i].Tags = tags
+	}
+
+	return bookmarks, nil
+}
+
+func (db *SQLiteDatabase) DeleteBookmarks(indices ...string) (oldIndices, newIndices []int, err error) {
+	// Convert list of index to int
+	listIndex := []int{}
+	errInvalidIndex := fmt.Errorf("Index is not valid")
+
+	for _, strIndex := range indices {
+		if strings.Contains(strIndex, "-") {
+			parts := strings.Split(strIndex, "-")
+			if len(parts) != 2 {
+				return nil, nil, errInvalidIndex
+			}
+
+			minIndex, errMin := strconv.Atoi(parts[0])
+			maxIndex, errMax := strconv.Atoi(parts[1])
+			if errMin != nil || errMax != nil || minIndex < 1 || minIndex > maxIndex {
+				return nil, nil, errInvalidIndex
+			}
+
+			for i := minIndex; i <= maxIndex; i++ {
+				listIndex = append(listIndex, i)
+			}
+		} else {
+			index, err := strconv.Atoi(strIndex)
+			if err != nil || index < 1 {
+				return nil, nil, errInvalidIndex
+			}
+
+			listIndex = append(listIndex, index)
+		}
+	}
+
+	// Sort the index
+	sort.Ints(listIndex)
+
+	// Create args and where clause
+	args := []interface{}{}
+	whereClause := " WHERE 1"
+
+	if len(listIndex) > 0 {
+		whereClause = " WHERE id IN ("
+		for _, idx := range listIndex {
+			args = append(args, idx)
+			whereClause += "?,"
+		}
+
+		whereClause = whereClause[:len(whereClause)-1]
+		whereClause += ")"
+	}
+
+	// Begin transaction
+	tx, err := db.Beginx()
+	if err != nil {
+		return nil, nil, errInvalidIndex
+	}
+
+	// Make sure to rollback if panic ever happend
+	defer func() {
+		if r := recover(); r != nil {
+			panicErr, _ := r.(error)
+			tx.Rollback()
+
+			oldIndices = nil
+			newIndices = nil
+			err = panicErr
+		}
+	}()
+
+	// Delete bookmark
+	res := tx.MustExec("DELETE FROM bookmark "+whereClause, args...)
+
+	nAffected, err := res.RowsAffected()
+	checkError(err)
+
+	whereTagClause := strings.Replace(whereClause, "id", "bookmark_id", 1)
+	tx.MustExec("DELETE FROM bookmark_tag "+whereTagClause, args...)
+
+	whereContentClause := strings.Replace(whereClause, "id", "docid", 1)
+	tx.MustExec("DELETE FROM bookmark_content "+whereContentClause, args...)
+
+	// Get largest index
+	oldIndices = []int{}
+	err = tx.Select(&oldIndices, "SELECT id FROM bookmark ORDER BY id DESC LIMIT ?", nAffected)
+	checkError(err)
+	sort.Ints(oldIndices)
+
+	// Update index
+	newIndices = listIndex[:len(oldIndices)]
+	stmtUpdateBookmark, err := tx.Preparex(`UPDATE bookmark SET id = ? WHERE id = ?`)
+	checkError(err)
+
+	stmtUpdateBookmarkTag, err := tx.Preparex(`UPDATE bookmark_tag SET bookmark_id = ? WHERE bookmark_id = ?`)
+	checkError(err)
+
+	stmtUpdateBookmarkContent, err := tx.Preparex(`UPDATE bookmark_content SET docid = ? WHERE docid = ?`)
+	checkError(err)
+
+	for i, oldIndex := range oldIndices {
+		newIndex := newIndices[i]
+
+		stmtUpdateBookmark.MustExec(newIndex, oldIndex)
+		stmtUpdateBookmarkTag.MustExec(newIndex, oldIndex)
+		stmtUpdateBookmarkContent.MustExec(newIndex, oldIndex)
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	checkError(err)
+
+	return oldIndices, newIndices, err
+}
+
+func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]model.Bookmark, error) {
+	// Create initial variable
+	keyword = strings.TrimSpace(keyword)
+	whereClause := "WHERE 1"
+	args := []interface{}{}
+
+	// Create where clause for keyword
+	if keyword != "" {
+		whereClause += ` AND id IN (
+				SELECT docid id FROM bookmark_content
+				WHERE bookmark_content MATCH ?)`
+		args = append(args, keyword)
+	}
+
+	// Create where clause for tags
+	if len(tags) > 0 {
+		whereTagClause := ` AND id IN (
+				SELECT DISTINCT bookmark_id FROM bookmark_tag
+				WHERE tag_id IN (SELECT id FROM tag WHERE name IN (`
+
+		for _, tag := range tags {
+			args = append(args, tag)
+			whereTagClause += "?,"
+		}
+
+		whereTagClause = whereTagClause[:len(whereTagClause)-1]
+		whereTagClause += ")))"
+
+		whereClause += whereTagClause
+	}
+
+	// Search bookmark
+	query := `SELECT id,
+			url, title, image_url, excerpt, author,
+			min_read_time, max_read_time, modified
+			FROM bookmark ` + whereClause
+
+	bookmarks := []model.Bookmark{}
+	err := db.Select(&bookmarks, query, args...)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	// Fetch tags for each bookmarks
+	stmtGetTags, err := db.Preparex(`SELECT t.id, t.name
+			FROM bookmark_tag bt LEFT JOIN tag t ON bt.tag_id = t.id
+			WHERE bt.bookmark_id = ? ORDER BY t.name`)
 	if err != nil {
 		return nil, err
 	}
