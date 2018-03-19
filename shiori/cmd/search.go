@@ -20,8 +20,9 @@ var (
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Read flags
-			useJSON, _ := cmd.Flags().GetBool("json")
 			tags, _ := cmd.Flags().GetStringSlice("tags")
+			useJSON, _ := cmd.Flags().GetBool("json")
+			indexOnly, _ := cmd.Flags().GetBool("index-only")
 
 			// Fetch keyword
 			keyword := ""
@@ -49,6 +50,8 @@ var (
 					os.Exit(1)
 				}
 				fmt.Println(string(bt))
+			} else if indexOnly {
+				printBookmarkIndex(bookmarks...)
 			} else {
 				printBookmark(bookmarks...)
 			}
@@ -58,6 +61,7 @@ var (
 
 func init() {
 	searchCmd.Flags().BoolP("json", "j", false, "Output data in JSON format")
+	searchCmd.Flags().BoolP("index-only", "i", false, "Only print the index of bookmarks")
 	searchCmd.Flags().StringSliceP("tags", "t", []string{}, "Search bookmarks with specified tag(s)")
 	rootCmd.AddCommand(searchCmd)
 }

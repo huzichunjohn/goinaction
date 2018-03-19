@@ -21,6 +21,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			// Read flags
 			useJSON, _ := cmd.Flags().GetBool("json")
+			indexOnly, _ := cmd.Flags().GetBool("index-only")
 
 			// read bookmarks from database
 			bookmarks, err := DB.GetBookmarks(args...)
@@ -47,6 +48,8 @@ var (
 					os.Exit(1)
 				}
 				fmt.Println(string(bt))
+			} else if indexOnly {
+				printBookmarkIndex(bookmarks...)
 			} else {
 				printBookmark(bookmarks...)
 			}
@@ -56,7 +59,15 @@ var (
 
 func init() {
 	printCmd.Flags().BoolP("json", "j", false, "Output data in JSON format")
+	printCmd.Flags().BoolP("index-only", "i", false, "Only print the index of bookmarks")
 	rootCmd.AddCommand(printCmd)
+}
+
+func printBookmarkIndex(bookmarks ...model.Bookmark) {
+	for _, bookmark := range bookmarks {
+		fmt.Printf("%d ", bookmark.ID)
+	}
+	fmt.Println()
 }
 
 func printBookmark(bookmarks ...model.Bookmark) {
