@@ -7,9 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/RadhiFadlillah/go-readability"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -79,11 +76,20 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 	return &SQLiteDatabase{*db}, err
 }
 
-func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...string) (bookmark model.Bookmark, err error) {
+func (db *SQLiteDatabase) SaveBookmark(bookmark model.Bookmark) (bookmarkID int64, err error) {
+	// Check URL and title
+	if bookmark.URL == "" {
+		return -1, fmt.Errorf("URL must not empty")
+	}
+
+	if bookmark.Title == "" {
+		return -1, fmt.Errorf("Title must not empty")
+	}
+
 	// Prepare transaction
 	tx, err := db.Beginx()
 	if err != nil {
-		return model.Bookmark{}, err
+		return -1, err
 	}
 
 	// Makr sure to rollback if panic ever happened
@@ -92,7 +98,7 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 			panicErr, _ := r.(error)
 			tx.Rollback()
 
-			bookmark = model.Bookmark{}
+			bookmarkID = -1
 			err = panicErr
 		}
 	}()
@@ -102,23 +108,23 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 		url, title, image_url, excerpt, author,
 		min_read_time, max_read_time)
 		VALUES(?, ?, ?, ?, ?, ?, ?)`,
-		article.URL,
-		article.Meta.Title,
-		article.Meta.Image,
-		article.Meta.Excerpt,
-		article.Meta.Author,
-		article.Meta.MinReadTime,
-		article.Meta.MaxReadTime)
+		bookmark.URL,
+		bookmark.Title,
+		bookmark.ImageURL,
+		bookmark.Excerpt,
+		bookmark.Author,
+		bookmark.MinReadTime,
+		bookmark.MaxReadTime)
 	checkError(err)
 
 	// Get last inserted ID
-	bookmarkID, err := res.LastInsertId()
+	bookmarkID, err = res.LastInsertId()
 	checkError(err)
 
 	// Save bookmark content
 	tx.MustExec(`INSERT INTO bookmark_content
 			(docid, title, content) VALUES (?, ?, ?)`,
-		bookmarkID, article.Meta.Title, article.Content)
+		bookmarkID, bookmark.Title, bookmark.Content)
 
 	// Save tags
 	stmtGetTag, err := tx.Preparex(`SELECT id FROM tag WHERE name = ?`)
@@ -130,47 +136,28 @@ func (db *SQLiteDatabase) SaveBookmark(article readability.Article, tags ...stri
 	stmtInsertBookmarkTag, err := tx.Preparex(`INSERT OR IGNORE INTO bookmark_tag(tag_id, bookmark_id) VALUES (?, ?)`)
 	checkError(err)
 
-	bookmarkTags := []model.Tag{}
-	for _, tag := range tags {
-		tag = strings.ToLower(tag)
-		tag = strings.TrimSpace(tag)
+	for _, tag := range bookmark.Tags {
+		tagName := strings.ToLower(tag.Name)
+		tagName = strings.TrimSpace(tagName)
 
 		tagID := int64(-1)
-		err = stmtGetTag.Get(&tagID, tag)
+		err = stmtGetTag.Get(&tagID, tagName)
 		checkError(err)
 
 		if tagID == -1 {
-			res := stmtInsertTag.MustExec(tag)
+			res := stmtInsertTag.MustExec(tagName)
 			tagID, err = res.LastInsertId()
 			checkError(err)
 		}
 
 		stmtInsertBookmarkTag.Exec(tagID, bookmarkID)
-		bookmarkTags = append(bookmarkTags, model.Tag{
-			ID:   tagID,
-			Name: tag,
-		})
 	}
 
 	// Commit transaction
 	err = tx.Commit()
 	checkError(err)
 
-	// Return result
-	bookmark = model.Bookmark{
-		ID:          bookmarkID,
-		URL:         article.URL,
-		Title:       article.Meta.Title,
-		ImageURL:    article.Meta.Image,
-		Excerpt:     article.Meta.Excerpt,
-		Author:      article.Meta.Author,
-		MinReadTime: article.Meta.MinReadTime,
-		MaxReadTime: article.Meta.MaxReadTime,
-		Modified:    time.Now().Format("2006-01-02 15:04:05"),
-		Tags:        bookmarkTags,
-	}
-
-	return bookmark, err
+	return bookmarkID, err
 }
 
 func (db *SQLiteDatabase) GetBookmarks(indices ...string) ([]model.Bookmark, error) {

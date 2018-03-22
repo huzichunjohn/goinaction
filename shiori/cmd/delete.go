@@ -12,11 +12,15 @@ var (
 		Use:   "delete [indices]",
 		Short: "Delete the saved bookmarks.",
 		Long: "Delete bookmarks. " +
-			"Accepts space-separated list of indices (e.g. 5 6 23 4 110 45) and hyphenated range (e.g. 100-200). " +
+			"When a record is deleted, the last record is moved to the removed index." +
+			"Accepts space-separated list of indices (e.g. 5 6 23 4 110 45) and hyphenated range (e.g. 100-200) or both (e.g. 1-3 7 9). " +
 			"If no arguments, all records will be deleted",
 		Run: func(cmd *cobra.Command, args []string) {
+			// Read flags
+			skipConfirmation, _ := cmd.Flags().GetBool("yes")
+
 			// If no arguments, confirm to user
-			if len(args) == 0 {
+			if len(args) == 0 && !skipConfirmation {
 				confirmDelete := ""
 				fmt.Print("Remove ALL bookmarks? (y/n): ")
 				fmt.Scanln(&confirmDelete)
@@ -35,16 +39,15 @@ var (
 			}
 
 			fmt.Println("Bookmarks has been deleted")
-			if len(oldIndices) > 0 {
-				for i, oldindex := range oldIndices {
-					newIndex := newIndices[i]
-					fmt.Printf("Index %d moved to %d\n", oldindex, newIndex)
-				}
+			for i, oldindex := range oldIndices {
+				newIndex := newIndices[i]
+				fmt.Printf("Index %d moved to %d\n", oldindex, newIndex)
 			}
 		},
 	}
 )
 
 func init() {
+	deleteCmd.Flags().BoolP("yes", "y", false, "Skip confirmation prompt and delete ALL bookmarks")
 	rootCmd.AddCommand(deleteCmd)
 }
