@@ -68,7 +68,7 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 		CONSTRAINT bookmark_id_FK FOREIGN KEY(bookmark_id) REFERENCES bookmark(id),
 		CONSTRAINT tag_id_FK FOREIGN KEY(tag_id) REFERENCES tag(id))`)
 
-	tx.MustExec(`CREATE VIRTUAL TABLE IF NOT EXISTS bookmark_content USING fts4(title, content)`)
+	tx.MustExec(`CREATE VIRTUAL TABLE IF NOT EXISTS bookmark_content USING fts4(title, content, html)`)
 
 	err = tx.Commit()
 	checkError(err)
@@ -123,8 +123,8 @@ func (db *SQLiteDatabase) SaveBookmark(bookmark model.Bookmark) (bookmarkID int6
 
 	// Save bookmark content
 	tx.MustExec(`INSERT INTO bookmark_content
-			(docid, title, content) VALUES (?, ?, ?)`,
-		bookmarkID, bookmark.Title, bookmark.Content)
+			(docid, title, content, html) VALUES (?, ?, ?, ?)`,
+		bookmarkID, bookmark.Title, bookmark.Content, bookmark.HTML)
 
 	// Save tags
 	stmtGetTag, err := tx.Preparex(`SELECT id FROM tag WHERE name = ?`)
@@ -377,8 +377,8 @@ func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]mod
 	if keyword != "" {
 		whereClause += ` AND id IN (
 				SELECT docid id FROM bookmark_content
-				WHERE bookmark_content MATCH ?)`
-		args = append(args, keyword)
+				WHERE title MATCH ? OR content MATCH ?)`
+		args = append(args, keyword, keyword)
 	}
 
 	// Create where clause for tags
@@ -427,6 +427,63 @@ func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]mod
 		}
 
 		bookmarks[i].Tags = tags
+	}
+
+	return bookmarks, nil
+}
+
+func (db *SQLiteDatabase) GetBookmarksContent(indices ...string) ([]model.Bookmark, error) {
+	// Convert list of index to int
+	listIndex := []int{}
+	errInvalidIndex := fmt.Errorf("Index is not valid")
+
+	for _, strIndex := range indices {
+		if strings.Contains(strIndex, "-") {
+			parts := strings.Split(strIndex, "-")
+			if len(parts) != 2 {
+				return nil, errInvalidIndex
+			}
+
+			minIndex, errMin := strconv.Atoi(parts[0])
+			maxIndex, errMax := strconv.Atoi(parts[1])
+			if errMin != nil || errMax != nil || minIndex < 1 || minIndex > maxIndex {
+				return nil, errInvalidIndex
+			}
+
+			for i := minIndex; i <= maxIndex; i++ {
+				listIndex = append(listIndex, i)
+			}
+		} else {
+			index, err := strconv.Atoi(strIndex)
+			if err != nil || index < 1 {
+				return nil, errInvalidIndex
+			}
+
+			listIndex = append(listIndex, index)
+		}
+	}
+
+	// Prepare where clause
+	args := []interface{}{}
+	whereClause := " WHERE 1"
+
+	if len(listIndex) > 0 {
+		whereClause = " WHERE docid IN ("
+		for _, idx := range listIndex {
+			args = append(args, idx)
+			whereClause += "?,"
+		}
+
+		whereClause = whereClause[:len(whereClause)-1]
+		whereClause += ")"
+	}
+
+	bookmarks := []model.Bookmark{}
+	err := db.Select(&bookmarks,
+		`SELECT docid id, title, content, html
+			FROM bookmark_content`+whereClause, args...)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
 	}
 
 	return bookmarks, nil
