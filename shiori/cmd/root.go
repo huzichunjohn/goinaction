@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	// DB is database that used by this cli
 	DB database.Database
 
 	rootCmd = &cobra.Command{
