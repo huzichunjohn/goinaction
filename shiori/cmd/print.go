@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	db "shiori/database"
 	"shiori/model"
 
 	"github.com/spf13/cobra"
@@ -25,7 +26,7 @@ var (
 			indexOnly, _ := cmd.Flags().GetBool("index-only")
 
 			// read bookmarks from database
-			bookmarks, err := DB.GetBookmarks(false, args...)
+			bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{}, args...)
 			if err != nil {
 				cError.Println(err)
 				os.Exit(1)

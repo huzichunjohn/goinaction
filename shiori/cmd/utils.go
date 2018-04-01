@@ -22,3 +22,9 @@ func getTerminalWidth() int {
 	width, _, _ := terminal.GetSize(int(os.Stdin.Fd()))
 	return width
 }
+
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

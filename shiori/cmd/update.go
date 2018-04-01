@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	db "shiori/database"
 	"shiori/model"
 	"strconv"
 	"strings"
@@ -59,7 +60,7 @@ var (
 			}
 
 			// Read bookmarks from database
-			bookmarks, err := DB.GetBookmarks(true, args...)
+			bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{WithContents: true}, args...)
 			if err != nil {
 				cError.Println(err)
 				return

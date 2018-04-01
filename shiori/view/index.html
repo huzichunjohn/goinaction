@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="stylesheet" href="/css/stylesheet.css">
+    <link rel="stylesheet" href="/css/fontawesome.css">
+    <link rel="stylesheet" href="/css/source-sans-pro.css">
+    <script src="/js/vue.js"></script>
+    <script src="/js/axios.js"></script>
+    <title>Shiori - Bookmarks Manager</title>
+</head>
+
+<body>
+    <div id="app">
+        <div id="header">
+            <a href="/" id="logo">
+                <span>栞</span>
+            </a>
+            <div id="search-box">
+                <input type="text" name="keyword" id="input-search" placeholder="Search tags, title or content">
+                <a class="button">
+                    <i class="fas fa-search fa-fw"></i>
+                </a>
+            </div>
+        </div>
+        <div id="main">
+            <div id="new-bookmark">
+                <input type="text" v-model="newBookmark.url" placeholder="URL for the bookmark">
+                <template v-if="newBookmark.url !== ''">
+                    <input type="text" v-model="newBookmark.title" placeholder="Custom bookmark title (optional)">
+                    <input type="text" v-model="newBookmark.tags" placeholder="Space separated tags for this bookmark (optional)">
+                    <textarea name="excerpt" v-model="newBookmark.excerpt" placeholder="Excerpt for this bookmark (optional)"></textarea>
+                    <div class="button-area">
+                        <div class="spacer"></div>
+                        <a v-if="newBookmark.loading">
+                            <i class="fas fa-fw fa-spinner fa-spin"></i>
+                        </a>
+                        <template v-else>
+                            <a class="button">Cancel</a>
+                            <a class="button" @click="saveBookmark">Done</a>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            <div id="grid">
+                <div v-for="column in gridColumns" class="column">
+                    <div v-for="item in column" class="bookmark">
+                        <a href="#" class="checkbox">
+                            <i class="fas fa-check"></i>
+                        </a>
+                        <a class="bookmark-metadata" :class="{'has-image':item.imageURL !== ''}" :style="bookmarkImage(item)" :href="item.url">
+                                <p class="bookmark-time">{{bookmarkTime(item)}}</p>
+                                <p class="bookmark-title">{{item.title}}</p>
+                                <p class="bookmark-url">{{getDomainURL(item.url)}}</p>
+                        </a>
+                        <p v-if="item.excerpt != ''" class="bookmark-excerpt">{{item.excerpt}}</p>
+                        <div v-if="item.tags.length > 0" class="bookmark-tags">
+                            <a v-for="tag in item.tags" href="#">{{tag.name}}</a>
+                        </div>
+                        <div class="bookmark-menu">
+                            <a href="#">
+                                <i class="fas fa-pencil-alt"></i>
+                            </a>
+                            <a href="#">
+                                <i class="far fa-trash-alt"></i>
+                            </a>
+                            <a href="#">
+                                <i class="fas fa-history"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="progress-bar">
+                <i v-if="loading" class="fas fa-fw fa-spinner fa-spin"></i>
+                <a href="#">Load more bookmarks</a>
+            </div>
+        </div>
+    </div>
+    <script>
+        var instance = axios.create();
+        instance.defaults.timeout = 2500;
+
+        var app = new Vue({
+            el: "#app",
+            data: {
+                windowWidth: 0,
+                loading: true,
+                bookmarks: [],
+                newBookmark: {
+                    url: "",
+                    title: "",
+                    tags: "",
+                    excerpt: "",
+                    loading: false
+                }
+            },
+            methods: {
+                loadData: function () {
+                    this.loading = true,
+                    instance.get('/api/bookmarks')
+                        .then(function (response) {
+                            app.loading = false;
+                            app.bookmarks = response.data;
+                            console.log(JSON.stringify(app.gridColumns, "", "    "));
+                        })
+                        .catch(function (error) {
+                            app.loading = false;
+                            console.log(error);
+                        });
+                },
+                saveBookmark: function () {
+                    if (this.newBookmark.loading) return;
+                    this.newBookmark.loading = true;
+
+                    if (this.newBookmark.url === "") return;
+
+                    var tags = this.newBookmark.tags.replace(/\s+/g, ""),
+                        listTag = tags === "" ? [] : listTag = tags.split(/\s+/g),
+                        finalTag = [];
+
+                    for (var i = 0; i < listTag.length; i++) {
+                        finalTag.push({
+                            name: listTag[i]
+                        });
+                    }
+
+                    instance.post('/api/bookmarks', {
+                            url: this.newBookmark.url,
+                            title: this.newBookmark.title,
+                            excerpt: this.newBookmark.excerpt,
+                            tags: finalTag
+                        }, {
+                            timeout: 15000
+                        })
+                        .then(function (response) {
+                            app.clearNewBookmark();
+                            app.bookmakrs.unshift(response.data);
+                        })
+                        .catch(function (error) {
+                            app.clearNewBookmark();
+                            console.log(error);
+                        });
+                },
+                clearNewBookmark: function () {
+                    this.newBookmark.url = "";
+                    this.newBookmark.title = "";
+                    this.newBookmark.tags = "";
+                    this.newBookmark.excerpt = "";
+                    this.newBookmark.loading = false;
+                },
+                bookmarkTime: function (book) {
+                    var time = book.modified,
+                        readTime = "",
+                        finalBookmarkTime = "";
+                    
+                    if (book.maxReadTime === 0) {
+                        readTime = "";
+                    } else if (book.minReadTime === book.maxReadTime) {
+                        readTime = bookmark.minReadTime + " min read";
+                    } else {
+                        readTime = book.minReadTime + "-" + book.maxReadTime + " min read";
+                    }
+
+                    finalBookmarkTime = "Updated " + time;
+                    if (readTime != "") finalBookmarkTime += " \u00B7 " + readTime;
+
+                    return finalBookmarkTime;
+                },
+                bookmarkImage: function (book) {
+                    if (book.imageURL === "") return "";
+                    return "background-image: url(" + book.imageURL + ")";
+                },
+                getDomainURL: function (url) {
+                    var hostname;
+
+                    if (url.indexOf("://") > -1) {
+                        hostname = url.split('/')[2];
+                    } else {
+                        hostname = url.split('/')[0];
+                    }
+
+                    hostname = hostname.split(':')[0];
+                    hostname = hostname.split('?')[0];
+
+                    return hostname;
+                }
+            },
+            computed: {
+                gridColumns: function () {
+                    var nColumn = Math.round(this.windowWidth / 500),
+                        finalContent = [],
+                        currentColumn = 0;
+
+                    for (var i = 0; i < nColumn; i++) {
+                        finalContent.push([])
+                    }
+
+                    for (var i = 0; i < this.bookmarks.length; i++) {
+                        var bookmark = this.bookmarks[i];
+                        finalContent[currentColumn].push(bookmark);
+
+                        currentColumn += 1;
+                        if (currentColumn >= nColumn) currentColumn = 0;
+                    }
+
+                    return finalContent;
+                }
+            },
+            mounted: function () {
+                this.windowWidth = window.innerWidth;
+                window.addEventListener('resize', function () {
+                    app.windowWidth = window.innerWidth;
+                })
+
+                this.loadData();
+            }
+        })
+    </script>
+</body>
+
+</html>
