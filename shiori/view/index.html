@@ -27,19 +27,20 @@
             </div>
         </div>
         <div id="main">
-            <div id="new-bookmark">
-                <input type="text" v-model="newBookmark.url" placeholder="URL for the bookmark">
-                <template v-if="newBookmark.url !== ''">
-                    <input type="text" v-model="newBookmark.title" placeholder="Custom bookmark title (optional)">
-                    <input type="text" v-model="newBookmark.tags" placeholder="Space separated tags for this bookmark (optional)">
-                    <textarea name="excerpt" v-model="newBookmark.excerpt" placeholder="Excerpt for this bookmark (optional)"></textarea>
+            <div id="input-bookmark">
+                <p v-if="inputBookmark.url !== ''">{{inputBookmark.id === -1 ? 'New bookmark' : 'Edit bookmark'}}</p>
+                <input type="text" ref="inputURL" v-model="inputBookmark.url" placeholder="URL for the bookmark">
+                <template v-if="inputBookmark.url !== ''">
+                    <input type="text" v-model="inputBookmark.title" placeholder="Custom bookmark title (optional)">
+                    <input type="text" v-model="inputBookmark.tags" placeholder="Space separated tags for this bookmark (optional)">
+                    <textarea name="excerpt" v-model="inputBookmark.excerpt" placeholder="Excerpt for this bookmark (optional)"></textarea>
                     <div class="button-area">
                         <div class="spacer"></div>
-                        <a v-if="newBookmark.loading">
+                        <a v-if="inputBookmark.loading">
                             <i class="fas fa-fw fa-spinner fa-spin"></i>
                         </a>
                         <template v-else>
-                            <a class="button">Cancel</a>
+                            <a class="button" @click="clearInputBookmark">Cancel</a>
                             <a class="button" @click="saveBookmark">Done</a>
                         </template>
                     </div>
@@ -47,7 +48,7 @@
             </div>
             <div id="grid">
                 <div v-for="column in gridColumns" class="column">
-                    <div v-for="item in column" class="bookmark">
+                    <div v-for="item in column" class="bookmark" :ref="'bookmark-'+item.index">
                         <a href="#" class="checkbox">
                             <i class="fas fa-check"></i>
                         </a>
@@ -61,10 +62,10 @@
                             <a v-for="tag in item.tags" href="#">{{tag.name}}</a>
                         </div>
                         <div class="bookmark-menu">
-                            <a href="#">
+                            <a href="#" @click="editBookmark(item.index)">
                                 <i class="fas fa-pencil-alt"></i>
                             </a>
-                            <a href="#">
+                            <a href="#" @click="deleteBookmark(item.index)">
                                 <i class="far fa-trash-alt"></i>
                             </a>
                             <a href="#">
@@ -79,6 +80,22 @@
                 <a href="#">Load more bookmarks</a>
             </div>
         </div>
+        <div v-if="dialog.visible" id="dialog-overlay">
+            <div id="dialog">
+                <p id="dialog-title">{{dialog.title}}</p>
+                <p v-html="dialog.content" id="dialog-content"></p>
+                <div id="dialog-button">
+                    <div class="spacer"></div>
+                    <a v-if="dialog.loading">
+                        <i class="fas fa-fw fa-spinner fa-spin"></i>
+                    </a>
+                    <template v-else>
+                        <a class="button" @click="dialog.secondAction">{{dialog.secondChoice}}</a>
+                        <a class="button" @click="dialog.mainAction">{{dialog.mainChoice}}</a>
+                    </template>
+                </div>
+            </div>
+        </div>
     </div>
     <script>
         var instance = axios.create();
@@ -90,12 +107,24 @@
                 windowWidth: 0,
                 loading: true,
                 bookmarks: [],
-                newBookmark: {
+                inputBookmark: {
+                    index: -1,
+                    id: -1,
                     url: "",
                     title: "",
                     tags: "",
                     excerpt: "",
                     loading: false
+                },
+                dialog: {
+                    visible: false,
+                    loading: false,
+                    title: '',
+                    content: '',
+                    mainChoice: '',
+                    secondChoice: '',
+                    mainAction: function () {},
+                    secondAction: function () {}
                 }
             },
             methods: {
@@ -113,12 +142,12 @@
                         });
                 },
                 saveBookmark: function () {
-                    if (this.newBookmark.loading) return;
-                    this.newBookmark.loading = true;
+                    if (this.inputBookmark.loading) return;
+                    this.inputBookmark.loading = true;
 
-                    if (this.newBookmark.url === "") return;
+                    if (this.inputBookmark.url === "") return;
 
-                    var tags = this.newBookmark.tags.replace(/\s+/g, ""),
+                    var tags = this.inputBookmark.tags.replace(/\s+/g, " "),
                         listTag = tags === "" ? [] : listTag = tags.split(/\s+/g),
                         finalTag = [];
 
@@ -128,29 +157,99 @@
                         });
                     }
 
-                    instance.post('/api/bookmarks', {
-                            url: this.newBookmark.url,
-                            title: this.newBookmark.title,
-                            excerpt: this.newBookmark.excerpt,
+                    instance.request({
+                        method: this.inputBookmark.id === -1 ? 'post' : 'put',
+                        url: '/api/bookmarks',
+                        timeout: 15000,
+                        data: {
+                            id: this.inputBookmark.id,
+                            url: this.inputBookmark.url,
+                            title: this.inputBookmark.title,
+                            excerpt: this.inputBookmark.excerpt,
                             tags: finalTag
-                        }, {
-                            timeout: 15000
-                        })
-                        .then(function (response) {
-                            app.clearNewBookmark();
-                            app.bookmakrs.unshift(response.data);
-                        })
-                        .catch(function (error) {
-                            app.clearNewBookmark();
-                            console.log(error);
-                        });
+                        }
+                    })
+                    .then(function (response) {
+                        var idx = app.inputBookmark.index;
+
+                        if (idx === -1) app.bookmarks.unshift(response.data);
+                        else app.bookmarks.splice(idx, 1, response.data);
+
+                        app.clearInputBookmark();
+                    })
+                    .catch(function (error) {
+                        console.log(error);
+                    });
                 },
-                clearNewBookmark: function () {
-                    this.newBookmark.url = "";
-                    this.newBookmark.title = "";
-                    this.newBookmark.tags = "";
-                    this.newBookmark.excerpt = "";
-                    this.newBookmark.loading = false;
+                editBookmark: function (idx) {
+                    var bookmark = this.bookmarks[idx],
+                        tags = [];
+
+                    for (var i = 0; i < bookmark.tags.length; i++) {
+                        tags.push(bookmark.tags[i].name);
+                    }
+
+                    this.inputBookmark.index = idx;
+                    this.inputBookmark.id = bookmark.id;
+                    this.inputBookmark.url = bookmark.url;
+                    this.inputBookmark.title = bookmark.title;
+                    this.inputBookmark.excerpt = bookmark.excerpt;
+
+                    this.$nextTick(function () {
+                        app.$refs.inputURL.focus();
+                    });
+                },
+                deleteBookmark: function (idx) {
+                    var bookmark = this.bookmarks[idx];
+
+                    this.dialog.visible = true;
+                    this.dialog.loading = false;
+                    this.dialog.title = "Delete Bookmark";
+                    this.dialog.content = "Delete <b>\"" + bookmark.title.trim() + "\"</b> from bookmarks ? This action is irreversible.";
+                    this.dialog.mainChoice = "Yes";
+                    this.dialog.secondChoice = "No";
+                    this.dialog.mainAction = function () {
+                        app.dialog.loading = true;
+
+                        instance.delete('/api/bookmarks/' + bookmark.id)
+                            .then(function (response) {
+                                app.dialog.loading = false;
+                                app.dialog.visible = false;
+                                app.bookmarks.splice(idx, 1);
+
+                                var scrollIdx = idx === 0 ? 0 : idx - 1;
+                                app.$nextTick(function () {
+                                    app.$refs['bookmark-' + scrollIdx][0].scrollIntoView();
+                                });
+                            })
+                            .catch(function (error) {
+                                app.dialog.loading = false;
+                                app.dialog.visible = false;
+                                console.log(error);
+                            });
+                    };
+                    this.dialog.secondAction = function () {
+                        app.dialog.visible = false;
+                        app.$nextTick(function () {
+                            app.$refs['bookmark-' + idx][0].scrollIntoView();
+                        });
+                    };
+                },
+                clearInputBookmark: function () {
+                    var idx = this.inputBookmark.index;
+
+                    this.inputBookmark.index = -1;
+                    this.inputBookmark.id = -1;
+                    this.inputBookmark.url = "";
+                    this.inputBookmark.title = "";
+                    this.inputBookmark.tags = "";
+                    this.inputBookmark.excerpt = "";
+                    this.inputBookmark.loading = false;
+
+                    if (idx !== -1) app.$nextTick(function () {
+                        var bookmarkItem = app.$refs['bookmark-' + idx];
+                        bookmarkItem[0].scrollIntoView();
+                    })
                 },
                 bookmarkTime: function (book) {
                     var time = book.modified,
@@ -201,6 +300,7 @@
 
                     for (var i = 0; i < this.bookmarks.length; i++) {
                         var bookmark = this.bookmarks[i];
+                        bookmark.index = i;
                         finalContent[currentColumn].push(bookmark);
 
                         currentColumn += 1;
@@ -208,6 +308,14 @@
                     }
 
                     return finalContent;
+                }
+            },
+            watch: {
+                'inputBookmark.url': function (newURL) {
+                    if (newURL === "") this.clearInputBookmark();
+                    else this.$nextTick(function () {
+                        app.$refs.inputURL.focus();
+                    });
                 }
             },
             mounted: function () {

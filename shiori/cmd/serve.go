@@ -30,6 +30,8 @@ var (
 			router.GET("/webfonts/*filepath", serveFiles)
 			router.GET("/api/bookmarks", apiGetBookmarks)
 			router.POST("/api/bookmarks", apiInsertBookmarks)
+			router.PUT("/api/bookmarks", apiUpdateBookmarks)
+			router.DELETE("/api/bookmarks/:id", apiDeleteBookmarks)
 
 			// Route for panic
 			router.PanicHandler = func(w http.ResponseWriter, r *http.Request, arg interface{}) {
@@ -81,4 +83,37 @@ func apiInsertBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	// Return new saved result
 	err = json.NewEncoder(w).Encode(&book)
 	checkError(err)
+}
+
+func apiUpdateBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Decode request
+	request := model.Bookmark{}
+	err := json.NewDecoder(r.Body).Decode(&request)
+	checkError(err)
+
+	// Convert tags and ID
+	id := []string{fmt.Sprintf("%d", request.ID)}
+	tags := make([]string, len(request.Tags))
+	for i, tag := range request.Tags {
+		tags[i] = tag.Name
+	}
+
+	// Update bookmark
+	bookmarks, err := updateBookmarks(id, request.URL, request.Title, request.Excerpt, tags, false)
+	checkError(err)
+
+	// Return new saved result
+	err = json.NewEncoder(w).Encode(&bookmarks[0])
+	checkError(err)
+}
+
+func apiDeleteBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Decode request
+	id := ps.ByName("id")
+
+	// Delete bookmarks
+	_, _, err := DB.DeleteBookmarks(id)
+	checkError(err)
+
+	fmt.Fprint(w, id)
 }
