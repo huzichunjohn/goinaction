@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"html/template"
 	db "shiori/database"
 	"shiori/model"
 	"strconv"
@@ -117,7 +118,7 @@ func updateBookmarks(indices []string, url, title, excerpt string, tags []string
 					book.MinReadTime = article.Meta.MinReadTime
 					book.MaxReadTime = article.Meta.MaxReadTime
 					book.Content = article.Content
-					book.HTML = article.RawContent
+					book.HTML = template.HTML(article.RawContent)
 
 					mutex.Lock()
 					bookmarks[pos] = book

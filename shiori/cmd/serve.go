@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	fp "path/filepath"
 	db "shiori/database"
@@ -28,15 +29,17 @@ var (
 			router.GET("/js/*filepath", serveFiles)
 			router.GET("/css/*filepath", serveFiles)
 			router.GET("/webfonts/*filepath", serveFiles)
+
+			router.GET("/bookmark/:id", openBookmark)
 			router.GET("/api/bookmarks", apiGetBookmarks)
 			router.POST("/api/bookmarks", apiInsertBookmarks)
 			router.PUT("/api/bookmarks", apiUpdateBookmarks)
 			router.DELETE("/api/bookmarks", apiDeleteBookmarks)
 
 			// Route for panic
-			router.PanicHandler = func(w http.ResponseWriter, r *http.Request, arg interface{}) {
-				http.Error(w, fmt.Sprint(arg), 500)
-			}
+			// router.PanicHandler = func(w http.ResponseWriter, r *http.Request, arg interface{}) {
+			// 	http.Error(w, fmt.Sprint(arg), 500)
+			// }
 
 			url := fmt.Sprintf(":%d", 8080)
 			logrus.Infoln("Serve shiori in", url)
@@ -118,4 +121,24 @@ func apiDeleteBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	checkError(err)
 
 	fmt.Fprint(w, request)
+}
+
+func openBookmark(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Read param in URL
+	id := ps.ByName("id")
+
+	// Read bookmarks
+	bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{WithContents: true}, id)
+	checkError(err)
+
+	if len(bookmarks) == 0 {
+		panic(fmt.Errorf("No bookmark with matching index"))
+	}
+
+	// Read template
+	templates, err := template.New("content.html").ParseFiles("view/content.html")
+	checkError(err)
+
+	err = templates.ExecuteTemplate(w, "content.html", &bookmarks[0])
+	checkError(err)
 }

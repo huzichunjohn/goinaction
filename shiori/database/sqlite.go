@@ -44,7 +44,6 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 
 	tx.MustExec(`CREATE TABLE IF NOT EXISTS bookmark(
 		id INTEGER NOT NULL,
-		account_id INTEGER DEFAULT NULL,
 		url TEXT NOT NULL,
 		title TEXT NOT NULL,
 		image_url TEXT NOT NULL DEFAULT "",
@@ -54,8 +53,7 @@ func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
 		max_read_time INTEGER NOT NULL DEFAULT 0,
 		modified TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		CONSTRAINT bookmark_PK PRIMARY KEY(id),
-		CONSTRAINT bookmark_url_UNIQUE UNIQUE(url),
-		CONSTRAINT bookmark_account_id_FK FOREIGN KEY(account_id) REFERENCES account(id))`)
+		CONSTRAINT bookmark_url_UNIQUE UNIQUE(url))`)
 
 	tx.MustExec(`CREATE TABLE IF NOT EXISTS tag(
 		id INTEGER NOT NULL,
@@ -118,7 +116,6 @@ func (db *SQLiteDatabase) SaveBookmark(bookmark model.Bookmark) (bookmarkID int6
 		bookmark.Author,
 		bookmark.MinReadTime,
 		bookmark.MaxReadTime)
-	checkError(err)
 
 	// Get last inserted ID
 	bookmarkID, err = res.LastInsertId()
@@ -474,12 +471,12 @@ func (db *SQLiteDatabase) UpdateBookmarks(bookmarks []model.Bookmark) (err error
 	}()
 
 	// prepare statement
-	stmtUpdateBookmark, err := tx.Preparex(`UPDATE bookmark SET
+	stmtUpdateBookmark, err := db.Preparex(`UPDATE bookmark SET
 			url = ?, title = ?, image_url = ?, excerpt = ?, author = ?,
 			min_read_time = ?, max_read_time = ? WHERE id = ?`)
 	checkError(err)
 
-	stmtUpdateBookmarkContent, err := tx.Preparex(`UPDATE bookmark_content SET
+	stmtUpdateBookmarkContent, err := db.Preparex(`UPDATE bookmark_content SET
 			title = ?, content = ?, html = ? WHERE docid = ?`)
 	checkError(err)
 
