@@ -1,16 +1,20 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
+	"mime"
 	"net/http"
 	fp "path/filepath"
-	db "shiori/database"
 	"shiori/model"
 	"strings"
 	"time"
+
+	"shiori/assets"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/dgrijalva/jwt-go/request"
@@ -23,6 +27,7 @@ import (
 
 var (
 	jwtKey   []byte
+	tplCache *template.Template
 	serveCmd = &cobra.Command{
 		Use:   "serve",
 		Short: "Serve web app for managing bookmarks.",
@@ -34,6 +39,14 @@ var (
 			_, err := rand.Read(jwtKey)
 			if err != nil {
 				cError.Println("Failed generating key for token")
+				return
+			}
+
+			// Prepare template
+			tplFile, _ := assets.ReadFile("cache.html")
+			tplCache, err = template.New("cache.html").Parse(string(tplFile))
+			if err != nil {
+				cError.Println("Failed generating HTML template")
 				return
 			}
 
@@ -59,7 +72,8 @@ var (
 				http.Error(w, fmt.Sprint(arg), 500)
 			}
 
-			url := fmt.Sprintf(":%d", 8080)
+			port, _ := cmd.Flags().GetInt("port")
+			url := fmt.Sprintf(":%d", port)
 			logrus.Infoln("Serve shiori in", url)
 			logrus.Fatalln(http.ListenAndServe(url, router))
 		},
@@ -67,15 +81,31 @@ var (
 )
 
 func init() {
+	serveCmd.Flags().IntP("port", "p", 8080, "Port that used by server")
 	rootCmd.AddCommand(serveCmd)
 }
 
 func serveFiles(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	filepath := r.URL.Path
-	filepath = strings.TrimPrefix(filepath, "/")
-	filepath = fp.Join("view", filepath)
-	fmt.Println(filepath)
-	http.ServeFile(w, r, filepath)
+	// Read asset path
+	path := r.URL.Path
+	if path[0:1] == "/" {
+		path = path[1:]
+	}
+
+	// Load asset
+	asset, err := assets.ReadFile(path)
+	checkError(err)
+
+	// Set response header content type
+	ext := fp.Ext(path)
+	mimeType := mime.TypeByExtension(ext)
+	if mimeType != "" {
+		w.Header().Set("Content-Type", mimeType)
+	}
+
+	// Serve asset
+	buffer := bytes.NewBuffer(asset)
+	io.Copy(w, buffer)
 }
 
 func serveIndexPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -86,13 +116,24 @@ func serveIndexPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		return
 	}
 
-	filepath := fp.Join("view", "index.html")
-	http.ServeFile(w, r, filepath)
+	asset, _ := assets.ReadFile("index.html")
+	w.Header().Set("Content-Type", "text/html")
+	buffer := bytes.NewBuffer(asset)
+	io.Copy(w, buffer)
 }
 
 func serveLoginPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	filepath := fp.Join("view", "login.html")
-	http.ServeFile(w, r, filepath)
+	// Check token
+	err := checkToken(r)
+	if err == nil {
+		redirectPage(w, r, "/")
+		return
+	}
+
+	asset, _ := assets.ReadFile("login.html")
+	w.Header().Set("Content-Type", "text/html")
+	buffer := bytes.NewBuffer(asset)
+	io.Copy(w, buffer)
 }
 
 func serveBookmarkCache(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -100,7 +141,7 @@ func serveBookmarkCache(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	id := ps.ByName("id")
 
 	// Read bookmarks
-	bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{WithContents: true}, id)
+	bookmarks, err := DB.GetBookmarks(true, id)
 	checkError(err)
 
 	if len(bookmarks) == 0 {
@@ -108,10 +149,7 @@ func serveBookmarkCache(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	}
 
 	// Read template
-	templates, err := template.New("content.html").ParseFiles("view/content.html")
-	checkError(err)
-
-	err = templates.ExecuteTemplate(w, "content.html", &bookmarks[0])
+	err = tplCache.Execute(w, &bookmarks[0])
 	checkError(err)
 }
 
@@ -155,12 +193,17 @@ func apiLogin(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 }
 
 func apiGetBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// Get query parameter
+	keyword := r.URL.Query().Get("keyword")
+	strTags := r.URL.Query().Get("tags")
+	tags := strings.Fields(strTags)
+
 	// Check token
 	err := checkAPIToken(r)
 	checkError(err)
 
 	// Fetch all bookmarks
-	bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{OrderLatest: true})
+	bookmarks, err := DB.SearchBookmarks(true, keyword, tags...)
 	checkError(err)
 
 	err = json.NewEncoder(w).Encode(&bookmarks)
@@ -178,12 +221,7 @@ func apiInsertBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	checkError(err)
 
 	// Save bookmark
-	tags := make([]string, len(request.Tags))
-	for i, tag := range request.Tags {
-		tags[i] = tag.Name
-	}
-
-	book, err := addBookmark(request.URL, request.Title, request.Excerpt, tags, false)
+	book, err := addBookmark(request, false)
 	checkError(err)
 
 	// Return new saved result
@@ -279,7 +317,7 @@ func openBookmark(w http.ResponseWriter, r *http.Request, ps httprouter.Params) 
 	id := ps.ByName("id")
 
 	// Read bookmarks
-	bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{WithContents: true}, id)
+	bookmarks, err := DB.GetBookmarks(true, id)
 	checkError(err)
 
 	if len(bookmarks) == 0 {

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -89,6 +90,10 @@ func (db *SQLiteDatabase) CreateBookmark(bookmark model.Bookmark) (bookmarkID in
 		return -1, fmt.Errorf("Title must not empty")
 	}
 
+	if bookmark.Modified == "" {
+		bookmark.Modified = time.Now().UTC().Format("2006-01-02 15:04:05")
+	}
+
 	// Prepare transaction
 	tx, err := db.Beginx()
 	if err != nil {
@@ -109,15 +114,16 @@ func (db *SQLiteDatabase) CreateBookmark(bookmark model.Bookmark) (bookmarkID in
 	// Save article to database
 	res := tx.MustExec(`INSERT INTO bookmark (
 		url, title, image_url, excerpt, author,
-		min_read_time, max_read_time)
-		VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		min_read_time, max_read_time, modified)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
 		bookmark.URL,
 		bookmark.Title,
 		bookmark.ImageURL,
 		bookmark.Excerpt,
 		bookmark.Author,
 		bookmark.MinReadTime,
-		bookmark.MaxReadTime)
+		bookmark.MaxReadTime,
+		bookmark.Modified)
 
 	// Get last inserted ID
 	bookmarkID, err = res.LastInsertId()
@@ -163,7 +169,7 @@ func (db *SQLiteDatabase) CreateBookmark(bookmark model.Bookmark) (bookmarkID in
 }
 
 // GetBookmarks fetch list of bookmarks based on submitted indices.
-func (db *SQLiteDatabase) GetBookmarks(options GetBookmarksOptions, indices ...string) ([]model.Bookmark, error) {
+func (db *SQLiteDatabase) GetBookmarks(withContent bool, indices ...string) ([]model.Bookmark, error) {
 	// Convert list of index to int
 	listIndex := []int{}
 	errInvalidIndex := fmt.Errorf("Index is not valid")
@@ -215,10 +221,6 @@ func (db *SQLiteDatabase) GetBookmarks(options GetBookmarksOptions, indices ...s
 			min_read_time, max_read_time, modified
 			FROM bookmark` + whereClause
 
-	if options.OrderLatest {
-		query += ` ORDER BY modified DESC`
-	}
-
 	bookmarks := []model.Bookmark{}
 	err := db.Select(&bookmarks, query, args...)
 	if err != nil && err != sql.ErrNoRows {
@@ -248,7 +250,7 @@ func (db *SQLiteDatabase) GetBookmarks(options GetBookmarksOptions, indices ...s
 			return nil, err
 		}
 
-		if options.WithContents {
+		if withContent {
 			err = stmtGetContent.Get(&book, book.ID)
 			if err != nil && err != sql.ErrNoRows {
 				return nil, err
@@ -390,7 +392,7 @@ func (db *SQLiteDatabase) DeleteBookmarks(indices ...string) (oldIndices, newInd
 }
 
 // SearchBookmarks search bookmarks by the keyword or tags.
-func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]model.Bookmark, error) {
+func (db *SQLiteDatabase) SearchBookmarks(orderLatest bool, keyword string, tags ...string) ([]model.Bookmark, error) {
 	// Create initial variable
 	keyword = strings.TrimSpace(keyword)
 	whereClause := "WHERE 1"
@@ -398,16 +400,16 @@ func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]mod
 
 	// Create where clause for keyword
 	if keyword != "" {
-		whereClause += ` AND id IN (
+		whereClause += ` AND (url LIKE ? OR id IN (
 				SELECT docid id FROM bookmark_content
-				WHERE title MATCH ? OR content MATCH ?)`
-		args = append(args, keyword, keyword)
+				WHERE title MATCH ? OR content MATCH ?))`
+		args = append(args, "%"+keyword+"%", keyword, keyword)
 	}
 
 	// Create where clause for tags
 	if len(tags) > 0 {
 		whereTagClause := ` AND id IN (
-				SELECT DISTINCT bookmark_id FROM bookmark_tag
+				SELECT bookmark_id FROM bookmark_tag
 				WHERE tag_id IN (SELECT id FROM tag WHERE name IN (`
 
 		for _, tag := range tags {
@@ -416,7 +418,8 @@ func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]mod
 		}
 
 		whereTagClause = whereTagClause[:len(whereTagClause)-1]
-		whereTagClause += ")))"
+		whereTagClause += `)) GROUP BY bookmark_id HAVING COUNT(bookmark_id) >= ?)`
+		args = append(args, len(tags))
 
 		whereClause += whereTagClause
 	}
@@ -426,6 +429,10 @@ func (db *SQLiteDatabase) SearchBookmarks(keyword string, tags ...string) ([]mod
 			url, title, image_url, excerpt, author,
 			min_read_time, max_read_time, modified
 			FROM bookmark ` + whereClause
+
+	if orderLatest {
+		query += ` ORDER BY modified DESC`
+	}
 
 	bookmarks := []model.Bookmark{}
 	err := db.Select(&bookmarks, query, args...)

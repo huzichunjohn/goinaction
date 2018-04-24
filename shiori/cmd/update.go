@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"html/template"
-	db "shiori/database"
 	"shiori/model"
 	"strconv"
 	"strings"
@@ -86,7 +85,7 @@ func init() {
 func updateBookmarks(indices []string, url, title, excerpt string, tags []string, offline bool) ([]model.Bookmark, error) {
 	mutex := sync.Mutex{}
 	// Read bookmarks from database
-	bookmarks, err := DB.GetBookmarks(db.GetBookmarksOptions{WithContents: true}, indices...)
+	bookmarks, err := DB.GetBookmarks(true, indices...)
 	if err != nil {
 		return []model.Bookmark{}, err
 	}
