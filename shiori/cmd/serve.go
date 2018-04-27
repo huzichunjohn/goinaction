@@ -54,6 +54,7 @@ var (
 			router := httprouter.New()
 
 			router.GET("/js/*filepath", serveFiles)
+			router.GET("/res/*filepath", serveFiles)
 			router.GET("/css/*filepath", serveFiles)
 			router.GET("/webfonts/*filepath", serveFiles)
 
