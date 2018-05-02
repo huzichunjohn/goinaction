@@ -35,7 +35,7 @@ var (
 				if len(args) > 0 {
 					cError.Println("No matching index found")
 				} else {
-					cError.Println("No saved bookmarks yet")
+					cError.Println("No bookmarks saved yet")
 				}
 
 				os.Exit(1)

@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"shiori/database"
+	db "shiori/database"
+
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/spf13/cobra"
 )
 
 var (
 	// DB is database that used by this cli
-	DB database.Database
+	DB db.Database
 
 	rootCmd = &cobra.Command{
 		Use:   "shiori",
@@ -26,4 +28,15 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func init() {
+	databasePath := "shiori.db"
+	if value, found := os.LookupEnv("ENV_SHIORI_DB"); found {
+		databasePath = value
+	}
+	sqliteDB, err := db.OpenSQLiteDatabase(databasePath)
+	checkError(err)
+
+	DB = sqliteDB
 }

@@ -20,10 +20,10 @@ type SQLiteDatabase struct {
 }
 
 // OpenSQLiteDatabase creates and open connection to new SQLite3 database.
-func OpenSQLiteDatabase() (*SQLiteDatabase, error) {
+func OpenSQLiteDatabase(databasePath string) (*SQLiteDatabase, error) {
 	// Open database and start transaction
 	var err error
-	db := sqlx.MustConnect("sqlite3", "shiori.db")
+	db := sqlx.MustConnect("sqlite3", databasePath)
 	tx := db.MustBegin()
 
 	// Make sure to rollback if panic ever happened
@@ -463,11 +463,11 @@ func (db *SQLiteDatabase) SearchBookmarks(orderLatest bool, keyword string, tags
 }
 
 // UpdateBookmarks updates the saved bookmark in database.
-func (db *SQLiteDatabase) UpdateBookmarks(bookmarks []model.Bookmark) (err error) {
+func (db *SQLiteDatabase) UpdateBookmarks(bookmarks []model.Bookmark) (result []model.Bookmark, err error) {
 	// prepare transaction
 	tx, err := db.Beginx()
 	if err != nil {
-		return err
+		return []model.Bookmark{}, err
 	}
 
 	// Make sure to rollback if panic ever happened
@@ -475,6 +475,8 @@ func (db *SQLiteDatabase) UpdateBookmarks(bookmarks []model.Bookmark) (err error
 		if r := recover(); r != nil {
 			panicErr, _ := r.(error)
 			tx.Rollback()
+
+			result = []model.Bookmark{}
 			err = panicErr
 		}
 	}()
@@ -518,6 +520,7 @@ func (db *SQLiteDatabase) UpdateBookmarks(bookmarks []model.Bookmark) (err error
 			book.HTML,
 			book.ID)
 
+		newTags := []model.Tag{}
 		for _, tag := range book.Tags {
 			if tag.Deleted {
 				stmtDeleteBookmarkTag.MustExec(book.ID, tag.ID)
@@ -537,14 +540,19 @@ func (db *SQLiteDatabase) UpdateBookmarks(bookmarks []model.Bookmark) (err error
 
 				stmtInsertBookmarkTag.Exec(tagID, book.ID)
 			}
+
+			newTags = append(newTags, tag)
 		}
+
+		book.Tags = newTags
+		result = append(result, book)
 	}
 
 	// Commit transaction
 	err = tx.Commit()
 	checkError(err)
 
-	return err
+	return result, err
 }
 
 // CreateAccount saves new account to database. Returns new ID and error if any happened.

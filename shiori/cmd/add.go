@@ -33,7 +33,7 @@ var (
 
 			bookmark.Tags = make([]model.Tag, len(tags))
 			for i, tag := range tags {
-				bookmark.Tags[i].Name = tag
+				bookmark.Tags[i].Name = strings.TrimSpace(tag)
 			}
 
 			// Save new bookmark
