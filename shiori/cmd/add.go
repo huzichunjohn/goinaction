@@ -14,7 +14,7 @@ import (
 var (
 	addCmd = &cobra.Command{
 		Use:   "add url",
-		Short: "Bookmark the specified URL.",
+		Short: "Bookmark the specified URL",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Read flag and arguments

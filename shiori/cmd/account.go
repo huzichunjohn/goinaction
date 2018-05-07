@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -11,12 +13,12 @@ import (
 var (
 	accountCmd = &cobra.Command{
 		Use:   "account",
-		Short: "Manage account for accessing web interface.",
+		Short: "Manage account for accessing web interface",
 	}
 
 	addAccountCmd = &cobra.Command{
 		Use:   "add username",
-		Short: "Create new account.",
+		Short: "Create new account",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			username := args[0]
@@ -41,11 +43,11 @@ var (
 
 	printAccountCmd = &cobra.Command{
 		Use:   "print",
-		Short: "Print the saved accounts.",
+		Short: "Print the saved accounts",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			keyword, _ := cmd.Flags().GetString("search")
-			err := printAccounts(keyword)
+			err := printAccounts(keyword, os.Stdout)
 			if err != nil {
 				cError.Println(err)
 				return
@@ -55,7 +57,7 @@ var (
 
 	deleteAccountCmd = &cobra.Command{
 		Use:   "delete [usernames]",
-		Short: "Delete the saved accounts.",
+		Short: "Delete the saved accounts",
 		Long: "Delete accounts. " +
 			"Accepts space-separated list of usernames. " +
 			"If no arguments, all records will be deleted.",
@@ -103,7 +105,7 @@ func init() {
 
 func addAccount(username, password string) error {
 	if username == "" {
-		return fmt.Errorf("Username must not empty")
+		return fmt.Errorf("Username must not be empty")
 	}
 
 	if len(password) < 8 {
@@ -118,15 +120,15 @@ func addAccount(username, password string) error {
 	return nil
 }
 
-func printAccounts(keyword string) error {
+func printAccounts(keyword string, wr io.Writer) error {
 	accounts, err := DB.GetAccounts(keyword, false)
 	if err != nil {
 		return err
 	}
 
 	for _, account := range accounts {
-		cIndex.Print("- ")
-		fmt.Println(account.Username)
+		cIndex.Fprint(wr, "- ")
+		fmt.Fprintln(wr, account.Username)
 	}
 
 	return nil

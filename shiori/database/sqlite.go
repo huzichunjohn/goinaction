@@ -20,10 +20,10 @@ type SQLiteDatabase struct {
 }
 
 // OpenSQLiteDatabase creates and open connection to new SQLite3 database.
-func OpenSQLiteDatabase(databasePath string) (*SQLiteDatabase, error) {
+func OpenSQLiteDatabase(dbFile string) (*SQLiteDatabase, error) {
 	// Open database and start transaction
 	var err error
-	db := sqlx.MustConnect("sqlite3", databasePath)
+	db := sqlx.MustConnect("sqlite3", dbFile)
 	tx := db.MustBegin()
 
 	// Make sure to rollback if panic ever happened
@@ -83,11 +83,11 @@ func OpenSQLiteDatabase(databasePath string) (*SQLiteDatabase, error) {
 func (db *SQLiteDatabase) CreateBookmark(bookmark model.Bookmark) (bookmarkID int64, err error) {
 	// Check URL and title
 	if bookmark.URL == "" {
-		return -1, fmt.Errorf("URL must not empty")
+		return -1, fmt.Errorf("URL must not be empty")
 	}
 
 	if bookmark.Title == "" {
-		return -1, fmt.Errorf("Title must not empty")
+		return -1, fmt.Errorf("Title must not be empty")
 	}
 
 	if bookmark.Modified == "" {

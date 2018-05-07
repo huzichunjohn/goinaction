@@ -1,6 +1,6 @@
 # Shiori
 
-Shiori is a simple bookmarks manager written in Go language. Intended as a simple clone of [Pocket](https://getpocket.com//). You can use it as command line application or as web application. This application is distributed as a single binary, which make it can be installed and used easily.
+Shiori is a simple bookmarks manager written in Go language. Intended as a simple clone of [Pocket](https://getpocket.com//). You can use it as command line application or as web application. This application is distributed as a single binary, which means it can be installed and used easily.
 
 ![Screenshot](https://raw.githubusercontent.com/RadhiFadlillah/shiori/master/screenshot.png)
 
@@ -14,13 +14,13 @@ Shiori is a simple bookmarks manager written in Go language. Intended as a simpl
 
 ## Features
 
-- Simple and clean command.
+- Simple and clean command line interface.
 - Basic bookmarks management i.e. add, edit and delete.
-- Search bookmarks by its titles, tags, url and page content.
+- Search bookmarks by their title, tags, url and page content.
 - Import and export bookmarks from and to Netscape Bookmark file.
-- Portable, thanks to its single binary format and sqlite3 database.
-- Simple web interface for those who doesn't used to command line app.
-- Where possible, by default `shiori` will download a static copy of the webpage in simple text and HTML format, which later can be used as offline archive for that page.
+- Portable, thanks to its single binary format and sqlite3 database
+- Simple web interface for those who don't want to use a command line app.
+- Where possible, by default `shiori` will download a static copy of the webpage in simple text and HTML format, which later can be used as an offline archive for that page.
 
 ## Installation
 
@@ -29,9 +29,6 @@ You can download the latest version of `shiori` from the release page, then put 
 ```
 go get github.com/RadhiFadlillah/shiori
 ```
-
-### Advanced
-You can provide a path to the created SQLite database. To do this, set the environment variable `ENV_SHIORI_DB` to the desired path.
 
 ## Usage
 
@@ -42,17 +39,17 @@ Usage:
   shiori [command]
 
 Available Commands:
-  account     Manage account for accessing web interface.
-  add         Bookmark the specified URL.
-  delete      Delete the saved bookmarks.
-  export      Export bookmarks into HTML file in Netscape Bookmark format.
+  account     Manage account for accessing web interface
+  add         Bookmark the specified URL
+  delete      Delete the saved bookmarks
+  export      Export bookmarks into HTML file in Netscape Bookmark format
   help        Help about any command
-  import      Import bookmarks from HTML file in Netscape Bookmark format.
-  open        Open the saved bookmarks.
-  print       Print the saved bookmarks.
-  search      Search bookmarks by submitted keyword.
-  serve       Serve web app for managing bookmarks.
-  update      Update the saved bookmarks.
+  import      Import bookmarks from HTML file in Netscape Bookmark format
+  open        Open the saved bookmarks
+  print       Print the saved bookmarks
+  search      Search bookmarks by submitted keyword
+  serve       Serve web app for managing bookmarks
+  update      Update the saved bookmarks
 
 Flags:
   -h, --help   help for shiori
@@ -80,7 +77,7 @@ Use "shiori [command] --help" for more information about a command.
    shiori print 1 2
    ```
 
-3. Search bookmarks that contains "sqlite" in its title, excerpt, url or content.
+3. Search bookmarks that contains "sqlite" in their title, excerpt, url or content.
 
    ```
    shiori search sqlite
@@ -166,4 +163,4 @@ Use "shiori [command] --help" for more information about a command.
 
 ## License
 
-Shiori is distributed using [MIT license](https://choosealicense.com/licenses/mit/), which means you can use and modify it however you want. However, if you make an enhancement for it, if possible, please send the pull request.
+Shiori is distributed using [MIT license](https://choosealicense.com/licenses/mit/), which means you can use and modify it however you want. However, if you make an enhancement for it, if possible, please send a pull request.

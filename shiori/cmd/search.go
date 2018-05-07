@@ -11,7 +11,7 @@ import (
 var (
 	searchCmd = &cobra.Command{
 		Use:   "search keyword",
-		Short: "search bookmarks by submitted keyword.",
+		Short: "search bookmarks by submitted keyword",
 		Long: "Search bookmarks by looking for matching keyword in bookmark's title and content. " +
 			"If no keyword submitted, print all saved bookmarks. " +
 			"Search results will be different depending on DBMS that used by shiori :\n" +

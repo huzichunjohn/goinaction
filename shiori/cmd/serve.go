@@ -30,7 +30,7 @@ var (
 	tplCache *template.Template
 	serveCmd = &cobra.Command{
 		Use:   "serve",
-		Short: "Serve web app for managing bookmarks.",
+		Short: "Serve web app for managing bookmarks",
 		Long: "Run a simple and performant web server which serves the site for managing bookmarks." +
 			"If --port flag is not used, it will use port 8080 by default.",
 		Run: func(cmd *cobra.Command, args []string) {

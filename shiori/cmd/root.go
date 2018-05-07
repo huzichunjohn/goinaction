@@ -17,7 +17,7 @@ var (
 
 	rootCmd = &cobra.Command{
 		Use:   "shiori",
-		Short: "Simple command-line bookmark manager built with Go.",
+		Short: "Simple command-line bookmark manager built with Go",
 	}
 )
 
