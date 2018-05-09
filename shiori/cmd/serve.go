@@ -267,7 +267,7 @@ func apiDeleteBookmarks(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	checkError(err)
 
 	// Delete bookmarks
-	_, _, err = DB.DeleteBookmarks(request...)
+	err = DB.DeleteBookmarks(request...)
 	checkError(err)
 
 	fmt.Fprint(w, request)

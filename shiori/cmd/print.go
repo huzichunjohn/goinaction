@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"shiori/model"
@@ -28,7 +27,7 @@ var (
 			bookmarks, err := DB.GetBookmarks(false, args...)
 			if err != nil {
 				cError.Println(err)
-				os.Exit(1)
+				return
 			}
 
 			if len(bookmarks) == 0 {
@@ -38,7 +37,7 @@ var (
 					cError.Println("No bookmarks saved yet")
 				}
 
-				os.Exit(1)
+				return
 			}
 
 			// Print data
@@ -46,7 +45,7 @@ var (
 				bt, err := json.MarshalIndent(&bookmarks, "", "    ")
 				if err != nil {
 					cError.Println(err)
-					os.Exit(1)
+					return
 				}
 				fmt.Println(string(bt))
 			} else if indexOnly {

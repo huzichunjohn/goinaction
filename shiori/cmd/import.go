@@ -75,9 +75,18 @@ func importBookmarks(pth string, generateTag bool) error {
 		// Get metadata
 		title := a.Text()
 		url, _ := a.Attr("href")
+		strTags, _ := a.Attr("tags")
 		strModified, _ := a.Attr("last_modified")
 		intModified, _ := strconv.ParseInt(strModified, 10, 64)
 		modified := time.Unix(intModified, 0)
+
+		// Get bookmark tags
+		tags := []model.Tag{}
+		for _, strTag := range strings.Split(strTags, ",") {
+			if strTag != "" {
+				tags = append(tags, model.Tag{Name: strTag})
+			}
+		}
 
 		// Get bookmark excerpt
 		excerpt := ""
@@ -94,9 +103,8 @@ func importBookmarks(pth string, generateTag bool) error {
 			category = strings.Replace(category, " ", "-", -1)
 		}
 
-		tags := []model.Tag{}
 		if category != "" && generateTag {
-			tags = []model.Tag{{Name: category}}
+			tags = append(tags, model.Tag{Name: category})
 		}
 
 		// Add item to list

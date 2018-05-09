@@ -2,6 +2,7 @@
 package main
 
 import (
+	"os"
 	"shiori/cmd"
 	db "shiori/database"
 
@@ -9,7 +10,11 @@ import (
 )
 
 func main() {
-	sqliteDB, err := db.OpenSQLiteDatabase("shiori.db")
+	databasePath := "shiori.db"
+	if value, found := os.LookupEnv("ENV_SHIORI_DB"); found {
+		databasePath = value
+	}
+	sqliteDB, err := db.OpenSQLiteDatabase(databasePath)
 	checkError(err)
 
 	cmd.DB = sqliteDB
