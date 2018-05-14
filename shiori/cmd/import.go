@@ -42,15 +42,6 @@ func init() {
 	rootCmd.AddCommand(importCmd)
 }
 
-func printTagName(s *goquery.Selection) string {
-	tags := []string{}
-	for _, nd := range s.Nodes {
-		tags = append(tags, nd.Data)
-	}
-
-	return strings.Join(tags, ",")
-}
-
 func importBookmarks(pth string, generateTag bool) error {
 	// Open file
 	srcFile, err := os.Open(pth)
@@ -95,6 +86,7 @@ func importBookmarks(pth string, generateTag bool) error {
 		}
 
 		// Get category name for this bookmark
+		// and add it as tags (if necessary)
 		category := ""
 		if dtCategory := dl.Prev(); dtCategory.Is("h3") {
 			category = dtCategory.Text()

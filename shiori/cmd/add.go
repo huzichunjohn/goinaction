@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"html/template"
+	nurl "net/url"
 	"shiori/model"
 	"strings"
 	"time"
@@ -60,6 +61,12 @@ func addBookmark(base model.Bookmark, offline bool) (book model.Bookmark, err er
 	// Prepare initial result
 	book = base
 
+	// Clear UTM parameters from URL
+	book.URL, err = clearUTMParams(book.URL)
+	if err != nil {
+		return book, err
+	}
+
 	// Fetch data from internet
 	if !offline {
 		article, err := readability.Parse(book.URL, 10*time.Second)
@@ -94,4 +101,23 @@ func addBookmark(base model.Bookmark, offline bool) (book model.Bookmark, err er
 
 func normalizeSpace(str string) string {
 	return strings.Join(strings.Fields(str), " ")
+}
+
+func clearUTMParams(uri string) (string, error) {
+	tempURL, err := nurl.Parse(uri)
+	if err != nil {
+		return "", err
+	}
+
+	newQuery := nurl.Values{}
+	for key, value := range tempURL.Query() {
+		if strings.HasPrefix(key, "utm_") {
+			continue
+		}
+
+		newQuery[key] = value
+	}
+
+	tempURL.RawQuery = newQuery.Encode()
+	return tempURL.String(), nil
 }

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/css/stylesheet.css">
     <link rel="stylesheet" href="/css/fontawesome.css">
     <link rel="stylesheet" href="/css/source-sans-pro.css">
+    <link rel="stylesheet" href="/css/cloud.css">
     <script src="/js/vue.js"></script>
     <script src="/js/axios.js"></script>
     <script src="/js/js-cookie.js"></script>
@@ -34,6 +35,10 @@
                     <a @click="reloadData">
                         <i class="fas fa-cloud fa-fw"></i>
                         <span>Reload</span>
+                    </a>
+                    <a @click="showTags">
+                        <i class="fas fa-hashtag fa-fw"></i>
+                        <span>Tags</span>
                     </a>
                     <a @click="toggleImage">
                         <i class="fas fa-fw" :class="showImage ? 'fa-eye-slash' : 'fa-eye'"></i>
@@ -89,42 +94,53 @@
                     <a v-if="search.keyword !== ''" @click="removeSearchParam(search.keyword)">{{search.keyword}}</a>
                     <a v-for="tag in search.tags" @click="removeSearchParam('#'+tag)">#{{tag}}</a>
                 </div>
-                <div id="grid">
-                    <div v-for="column in gridColumns" class="column">
-                        <div v-for="item in column" class="bookmark" :class="{checked: isBookmarkChecked(item.index)}" :ref="'bookmark-'+item.index">
-                            <a class="checkbox" @click="toggleBookmarkCheck(item.index)">
-                                <i class="fas fa-check"></i>
-                            </a>
-                            <a class="bookmark-metadata" target="_blank" :class="{'has-image':bookmarkImage(item) !== ''}" :style="bookmarkImage(item)" :href="item.url">
-                                    <p class="bookmark-time">{{bookmarkTime(item)}}</p>
-                                    <p class="bookmark-title">{{item.title}}</p>
-                                    <p class="bookmark-url">{{getDomainURL(item.url)}}</p>
-                            </a>
-                            <p v-if="item.excerpt != ''" class="bookmark-excerpt">{{item.excerpt}}</p>
-                            <div v-if="item.tags.length > 0" class="bookmark-tags">
-                                <a v-for="tag in item.tags" @click="searchTag(tag.name)">{{tag.name}}</a>
-                            </div>
-                            <div class="bookmark-menu">
-                                <a @click="updateBookmark(item.index)">
-                                    <i class="fas fa-sync"></i>
-                                    <span>Update</span>
+                <template v-if="!displayTags">
+                    <div id="grid">
+                        <div v-for="column in gridColumns" class="column">
+                            <div v-for="item in column" class="bookmark" :class="{checked: isBookmarkChecked(item.index)}" :ref="'bookmark-'+item.index">
+                                <a class="checkbox" @click="toggleBookmarkCheck(item.index)">
+                                    <i class="fas fa-check"></i>
                                 </a>
-                                <a @click="editBookmark(item.index)">
-                                    <i class="fas fa-pencil-alt"></i>
-                                    <span>Edit</span>
+                                <a class="bookmark-metadata" target="_blank" :class="{'has-image':bookmarkImage(item) !== ''}" :style="bookmarkImage(item)" :href="item.url">
+                                        <p class="bookmark-time">{{bookmarkTime(item)}}</p>
+                                        <p class="bookmark-title">{{item.title}}</p>
+                                        <p class="bookmark-url">{{getDomainURL(item.url)}}</p>
                                 </a>
-                                <a @click="deleteBookmarks([item.index])">
-                                    <i class="far fa-trash-alt"></i>
-                                    <span>Delete</span>
-                                </a>
-                                <a :href="'/bookmark/'+item.id" target="_blank">
-                                    <i class="fas fa-history"></i>
-                                    <span>Cache</span>
-                                </a>
+                                <p v-if="item.excerpt != ''" class="bookmark-excerpt">{{item.excerpt}}</p>
+                                <div v-if="item.tags.length > 0" class="bookmark-tags">
+                                    <a v-for="tag in item.tags" @click="searchTag(tag.name)">{{tag.name}}</a>
+                                </div>
+                                <div class="bookmark-menu">
+                                    <a @click="updateBookmark(item.index)">
+                                        <i class="fas fa-sync"></i>
+                                        <span>Update</span>
+                                    </a>
+                                    <a @click="editBookmark(item.index)">
+                                        <i class="fas fa-pencil-alt"></i>
+                                        <span>Edit</span>
+                                    </a>
+                                    <a @click="deleteBookmarks([item.index])">
+                                        <i class="far fa-trash-alt"></i>
+                                        <span>Delete</span>
+                                    </a>
+                                    <a :href="'/bookmark/'+item.id" target="_blank">
+                                        <i class="fas fa-history"></i>
+                                        <span>Cache</span>
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </template>
+                <template v-if="displayTags">
+                    <div id="tagcloud">
+                        <ul class="cloud">
+                            <li v-for="item in this.tagCloud">
+                                <a href="javascript: void(0);" @click="selectTag(item.name)" v-bind:style="'font-size:' + item.count +'em;'">#{{item.name}}</a>
+                            </li>
+                        </ul>
+                    </div>
+                </template>
             </template>
             <div v-if="loading || error !== ''" id="message-bar">
                 <i v-if="loading" class="fas fa-fw fa-spinner fa-spin"></i>
@@ -161,7 +177,9 @@
                 windowWidth: 0,
                 error: "",
                 loading: false,
+                displayTags: false,
                 bookmarks: [],
+                tags: [],
                 checkedBookmarks: [],
                 showImage: true,
                 search: {
@@ -453,6 +471,37 @@
                         var bookmarkItem = app.$refs['bookmark-' + idx];
                         bookmarkItem[0].scrollIntoView();
                     })
+                },
+                showTags: function() {
+                    instance.get('/api/tags')
+                    .then(function(response) {
+                        app.displayTags = true;
+                        app.loading = false;
+                        app.tagCloud = response.data;
+                        var minFont = 1;
+                        var maxFont = 8;
+                        var maxCount = 0;
+                        // find largest count value
+                        for (var i=0; i < app.tagCloud.length; i++) {
+                            if (app.tagCloud[i].count > maxCount) {
+                                maxCount = app.tagCloud[i].count;
+                            }
+                        }
+                        // update tag count value to be fontsize we want to display
+                        for (var i = 0; i < app.tagCloud.length; i++) {
+                            var size = (Math.log(app.tagCloud[i].count)/Math.log(maxCount)) * (maxFont - minFont) + minFont;
+                            app.tagCloud[i].count = size;
+                        }
+                    })
+                    .catch(function(error) {
+                        var errorMsg = error.response ? error.response.data : error.message;
+                        app.loading = false;
+                        app.error = errorMsg.trim();
+                    });
+                },
+                selectTag: function(tag) {
+                    app.displayTags = false;
+                    app.searchTag(tag);
                 },
                 bookmarkTime: function (book) {
                     var time = book.modified,
