@@ -146,7 +146,7 @@ func htmlWidgetHandler(ws app.WidgetService) *WidgetHandler {
 			return &widget, nil
 		},
 
-		renderCreateSuccess: func(w http.ResponseWriter, r *http.Request) {
+		renderCreateSuccess: func(w http.ResponseWriter, r *http.Request, _ *app.Widget) {
 			http.Redirect(w, r, "/widgets", http.StatusFound)
 		},
 
