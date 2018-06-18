@@ -6,6 +6,9 @@ import (
 	"net/http"
 )
 
+// TODO: Use Gorilla Mux router.
+// TODO: Authentication.
+
 func main() {
 	db := core.SetupDatabaseConnection()
 	defer db.Close()
