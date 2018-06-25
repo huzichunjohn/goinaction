@@ -66,7 +66,7 @@ var GetVisitsRealtimeCount = http.HandlerFunc(func(w http.ResponseWriter, r *htt
 // URL: /api/visits/count/day
 var GetVisitsDayCountHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	stmt, err := core.DB.Prepare(`SELECT
-		COUNT(*) as count, DATE_FORMAT(timestamp, '%Y-%m-%d') AS date_group
+		COUNT(DISTINCT(ip_address)) as count, DATE_FORMAT(timestamp, '%Y-%m-%d') AS date_group
 		FROM visits
 		GROUP BY date_group`)
 	checkError(err)

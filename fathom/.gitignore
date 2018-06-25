@@ -1,4 +1,4 @@
-node_modules
-static/assets/js
-static/assets/css
+node_module
+static
 .*
+storage

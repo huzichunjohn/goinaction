@@ -2,13 +2,19 @@
 
 body {
     font-family: Arial, Verdana, sans-serif;
-    font-size: 14px;
+    font-size: 15px;
     color: #333;
     background: #f5f5f5;
 }
 
 h1, h2, h3 {
     color: #111;
+}
+
+small {
+    font-weight: normal;
+    font-style: italic;
+    color: #666;
 }
 
 table {
@@ -22,6 +28,18 @@ table {
 
 a {
     color: #09f;
+}
+
+label {
+    display: block;
+}
+
+input {
+    padding: 8px;
+
+    &[type="submit"] {
+        cursor: pointer;
+    }
 }
 
 .container {
@@ -40,10 +58,33 @@ a {
     }
 }
 
+.form-group {
+    margin-bottom: 20px;
+}
+
 .count {
     font-weight: bold;
     font-size: 120%;
 }
 
-.subtitle {
+.header {
+    line-height: 40px;
+}
+
+.pull-right {
+    float: right;
+}
+
+.pull-left {
+    float: left;
+}
+
+.cf:before,
+.cf:after {
+    content: " ";
+    display: table;
+}
+
+.cf:after {
+    clear: both;
 }
