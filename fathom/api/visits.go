@@ -55,7 +55,7 @@ var GetVisitsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Requ
 
 // URL: /api/visits/count/realtime
 var GetVisitsRealtimeCount = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	row := core.DB.QueryRow(`SELECT COUNT(DISTINCT(ip_address)) FROM visits WHERE timestamp >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 3 HOUR_MINUTE)`)
+	row := core.DB.QueryRow(`SELECT COUNT(DISTINCT(ip_address)) FROM visits WHERE timestamp >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 3 HOUR_MINUTE) AND timestamp <= CURRENT_TIMESTAMP`)
 	var result int
 	row.Scan(&result)
 
@@ -68,17 +68,18 @@ var GetVisitsDayCountHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 	stmt, err := core.DB.Prepare(`SELECT
 		COUNT(DISTINCT(ip_address)) as count, DATE_FORMAT(timestamp, '%Y-%m-%d') AS date_group
 		FROM visits
+		WHERE timestamp >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? DAY)
 		GROUP BY date_group`)
 	checkError(err)
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
-	checkError(err)
-
-	type Datapoint struct {
-		Count int
-		Label string
+	period, err := strconv.Atoi(r.URL.Query().Get("period"))
+	if err != nil || period == 0 {
+		period = 1
 	}
+
+	rows, err := stmt.Query(period)
+	checkError(err)
 
 	results := make([]Datapoint, 0)
 	defer rows.Close()
@@ -89,6 +90,8 @@ var GetVisitsDayCountHandler = http.HandlerFunc(func(w http.ResponseWriter, r *h
 		checkError(err)
 		results = append(results, v)
 	}
+
+	results = fillDatapoints(period, results)
 
 	err = rows.Err()
 	checkError(err)

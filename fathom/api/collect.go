@@ -5,14 +5,11 @@ import (
 	"fathom/models"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/mssola/user_agent"
 )
 
 func CollectHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[%s] %s %s (%s)\n", time.Now(), r.Method, r.RequestURI, r.UserAgent())
-
 	ua := user_agent.New(r.UserAgent())
 
 	// abort if this is a bot.
@@ -53,8 +50,6 @@ func CollectHandler(w http.ResponseWriter, r *http.Request) {
 
 	// add device details
 	visit.DeviceOS = ua.OS()
-
-	log.Printf("%+v\n", visit)
 
 	_, err = stmt.Exec(
 		visit.IpAddress,

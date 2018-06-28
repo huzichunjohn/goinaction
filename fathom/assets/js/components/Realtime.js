@@ -5,11 +5,11 @@ import { h, render, Component } from 'preact';
 class Realtime extends Component {
 
   constructor(props) {
-    super(props);
+    super(props)
 
     this.state = {
       count: 0
-    };
+    }
     this.fetchData = this.fetchData.bind(this);
     this.fetchData();
   }
@@ -30,8 +30,8 @@ class Realtime extends Component {
       <div class="block">
         <span class="count">{this.state.count}</span> <span>{visitors} on the site right now</span>
       </div>
-    );
+    )
   }
 }
 
-export default Realtime;
+export default Realtime

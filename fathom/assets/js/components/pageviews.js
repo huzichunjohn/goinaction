@@ -5,17 +5,23 @@ import { h, render, Component } from 'preact';
 class Pageviews extends Component {
 
   constructor(props) {
-    super(props);
+    super(props)
 
     this.state = {
       records: []
-    };
+    }
     this.fetchRecords = this.fetchRecords.bind(this);
-    this.fetchRecords();
+    this.fetchRecords(props.period);
   }
 
-  fetchRecords() {
-    return fetch('/api/pageviews', {
+  componentWillReceiveProps(newProps) {
+    if(this.props.period != newProps.period) {
+      this.fetchRecords(newProps.period)
+    }
+  }
+
+  fetchRecords(period) {
+    return fetch('/api/pageviews?period=' + period, {
       credentials: 'include'
     }).then((r) => {
       if( r.ok ) {
@@ -51,8 +57,8 @@ class Pageviews extends Component {
           <tbody>{tableRows}</tbody>
         </table>
       </div>
-    );
+    )
   }
 }
 
-export default Pageviews;
+export default Pageviews

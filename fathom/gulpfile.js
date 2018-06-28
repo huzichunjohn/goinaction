@@ -18,11 +18,17 @@ gulp.task('browserify', function () {
             entries: './assets/js/script.js',
             debug: true
         })
-        .transform("babelify", {presets: ["es2015"]})
+        .transform("babelify", {
+            presets: ["es2015"],
+            plugins: [ 
+                "transform-decorators-legacy", 
+                ["transform-react-jsx", { "pragma":"h" } ] 
+            ]
+        })
         .bundle()
         .on('error', function(err){
-            console.log(err.message);
-            this.emit('end');
+          console.log(err.message);
+          this.emit('end');
         })
         .pipe(source('script.js'))
         .pipe(buffer())
@@ -32,13 +38,13 @@ gulp.task('browserify', function () {
 gulp.task('sass', function () {
 	var files = './assets/sass/[^_]*.scss';
 	return gulp.src(files)
-        .pipe(sass())
-        .on('error', gutil.log)
+		.pipe(sass())
+    .on('error', gutil.log)
 		.pipe(rename({ extname: '.css' }))
 		.pipe(gulp.dest('./static/css'))
 });
 
 gulp.task('watch', ['default'], function() {
-    gulp.watch(['./assets/js/**/*.js'], ['browserify']);
-    gulp.watch(['./assets/sass/*.scss'], ['sass']);
+  gulp.watch(['./assets/js/**/*.js'], ['browserify'] );
+  gulp.watch(['./assets/sass/*.scss'], ['sass'] );
 });
