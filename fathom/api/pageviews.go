@@ -5,31 +5,28 @@ import (
 	"fathom/core"
 	"fathom/models"
 	"net/http"
-	"strconv"
 )
 
 // URL: /api/pageviews
 var GetPageviewsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	period := getRequestedPeriod(r)
+
 	stmt, err := core.DB.Prepare(`SELECT
 			path,
 			COUNT(ip_address) AS pageviews,
 			COUNT(DISTINCT(ip_address)) AS pageviews_unique
 		FROM visits
 		WHERE timestamp >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? DAY)
-		GROUP BY path`)
+		GROUP BY path
+		ORDER BY pageviews DESC`)
 	checkError(err)
 	defer stmt.Close()
 
-	period := r.URL.Query().Get("period")
-	if period == "" {
-		period = "1"
-	}
-
 	rows, err := stmt.Query(period)
 	checkError(err)
+	defer rows.Close()
 
 	results := make([]models.Pageview, 0)
-	defer rows.Close()
 	for rows.Next() {
 		var p models.Pageview
 		err = rows.Scan(&p.Path, &p.Count, &p.CountUnique)
@@ -46,6 +43,8 @@ var GetPageviewsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.R
 
 // URL: /api/pageviews/count/day
 var GetPageviewsDayCountHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	period := getRequestedPeriod(r)
+
 	stmt, err := core.DB.Prepare(`SELECT
 		COUNT(*) AS count, DATE_FORMAT(timestamp, '%Y-%m-%d') AS date_group
 		FROM visits
@@ -54,16 +53,11 @@ var GetPageviewsDayCountHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	checkError(err)
 	defer stmt.Close()
 
-	period, err := strconv.Atoi(r.URL.Query().Get("period"))
-	if err != nil || period == 0 {
-		period = 7
-	}
-
 	rows, err := stmt.Query(period)
 	checkError(err)
+	defer rows.Close()
 
 	results := make([]Datapoint, 0)
-	defer rows.Close()
 	for rows.Next() {
 		v := Datapoint{}
 		err = rows.Scan(&v.Count, &v.Label)
@@ -72,9 +66,6 @@ var GetPageviewsDayCountHandler = http.HandlerFunc(func(w http.ResponseWriter, r
 	}
 
 	results = fillDatapoints(period, results)
-
-	err = rows.Err()
-	checkError(err)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)

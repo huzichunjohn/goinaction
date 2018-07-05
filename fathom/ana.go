@@ -37,6 +37,11 @@ func main() {
 	r.Handle("/api/visits", api.Authorize(api.GetVisitsHandler)).Methods("GET")
 	r.Handle("/api/pageviews/count/day", api.Authorize(api.GetPageviewsDayCountHandler)).Methods("GET")
 	r.Handle("/api/pageviews", api.Authorize(api.GetPageviewsHandler)).Methods("GET")
+	r.Handle("/api/languages", api.Authorize(api.GetLanguagesHandler)).Methods("GET")
+	r.Handle("/api/screen-resolutions", api.Authorize(api.GetScreenResolutionsHandler)).Methods("GET")
+	r.Handle("/api/countries", api.Authorize(api.GetCountriesHandler)).Methods("GET")
+	r.Handle("/api/browsers", api.Authorize(api.GetBrowsersHandler)).Methods("GET")
+
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 	r.Handle("/", http.FileServer(http.Dir("./views/")))
 

@@ -43,8 +43,8 @@ class Pageviews extends Component {
     ));
 
     return (
-      <div class="block">
-        <h2>Pageviews</h2>
+      <div class="block block-float">
+        <h3>Pageviews</h3>
         <table class="table pageviews">
           <thead>
             <tr>

@@ -1,20 +1,15 @@
 'use strict';
 
 import { h, render, Component } from 'preact';
-import LoginForm from './components/LoginForm.js';
-import LogoutButton from './components/LogoutButton.js';
-import Pageviews from './components/Pageviews.js';
-import Realtime from './components/Realtime.js';
-import Graph from './components/Graph.js';
-import DatePicker from './components/DatePicker.js';
+import Login from './pages/login';
+import Dashboard from './pages/dashboard';
 
 class App extends Component {
   constructor(props) {
-    super(props)
+    super(props);
 
-    this.state = window.state = {
+    this.state = {
       authenticated: document.cookie.indexOf('auth') > -1,
-      period: 7
     }
   }
 
@@ -23,30 +18,14 @@ class App extends Component {
     // logged-in
     if( this.state.authenticated ) {
       return (
-        <div class="container">
-            <header class="header cf">
-              <h1 class="pull-left">Ana <small>open web analytics</small></h1>
-              <div class="pull-right">
-                <LogoutButton onSuccess={() => { this.setState({ authenticated: false })}} />
-              </div>
-            </header>
-            <Realtime />
-            <DatePicker period={this.state.period} onChoose={(p) => { this.setState({ period: p })}} />
-            <Graph period={this.state.period} />
-            <Pageviews period={this.state.period} />
-        </div>
-      )
+        <Dashboard onLogout={() => this.setState({ authenticated: false })} />
+      );
     }
 
     // logged-out
     return (
-        <div class="container">
-          <header class="header cf">
-            <h1 class="pull-left">Ana <small>open web analytics</small></h1>
-          </header>
-          <LoginForm onAuth={() => { this.setState({ authenticated: true })}} />
-        </div>
-    )
+      <Login onLogin={() => this.setState({ authenticated: true })} />
+    );
   }
 }
 
